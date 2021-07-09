@@ -3,7 +3,7 @@ Feature: Arcade coin-op
     Background: Coins are required (not free mode)
         Given my machine is configured to require coins
 
-    Rule: When a coin is inserted, the balance should increase by the amount of the coin 
+    Rule: When a coin is inserted, the balance should increase by the amount of the coin
 
         Scenario: Successfully inserting coins
             Given I have not inserted any coins

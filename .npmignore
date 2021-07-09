@@ -1,5 +1,2 @@
-examples/
-src/
-images/
-.vscode/
-tsconfig.json
+*
+!publish/

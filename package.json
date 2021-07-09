@@ -8,7 +8,10 @@
     "build": "tsc",
     "jest": "jest --verbose",
     "test": "npm run build & npm run lint & jest --color",
-    "lint": "tslint --project ./"
+    "es-lint": "eslint ",
+    "es-lint-fix": "eslint --fix \"./src/**/*.ts\"",
+    "prettier": "onchange '**/*.{ts,tsx,json}' -- prettier --write {{changed}}",
+    "lint-all": "npm run prettier & npm run es-lint-fix"
   },
   "repository": {
     "type": "git",
@@ -27,6 +30,8 @@
   "homepage": "https://github.com/bencompton/jest-cucumber#readme",
   "devDependencies": {
     "babel-jest": "^24.1.0",
+    "onchange": "^7.1.0",
+    "prettier": "^2.3.2",
     "ts-jest": "^26.1.4",
     "tslint": "^5.10.0",
     "typescript": "^3.3.3"

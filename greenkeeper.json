@@ -1,10 +1,7 @@
 {
   "groups": {
     "default": {
-      "packages": [
-        "examples/ecmascript/package.json",
-        "package.json"
-      ]
+      "packages": ["examples/ecmascript/package.json", "package.json"]
     }
   }
 }

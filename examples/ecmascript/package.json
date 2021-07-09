@@ -17,13 +17,8 @@
     "transform": {
       "^.+\\.jsx?$": "babel-jest"
     },
-    "testMatch": [
-      "**/*.steps.js"
-    ],
-    "moduleFileExtensions": [
-      "js",
-      "jsx"
-    ]
+    "testMatch": ["**/*.steps.js"],
+    "moduleFileExtensions": ["js", "jsx"]
   },
   "dependencies": {
     "jest": "^26.2.2"

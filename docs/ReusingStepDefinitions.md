@@ -5,21 +5,21 @@ Jest Cucumber expects you to define all of your step definitions inline for each
 It is normally recommended that your test code contain as little logic as possible, with common setup logic abstracted into other modules (e.g., test data creation), so there really shouldn't be much duplicated code in the first place. To further reduce duplicated code, you could do something like this:
 
 ```javascript
-defineFeature(feature, test => {
+defineFeature(feature, (test) => {
   let myAccount;
-		
+
   beforeEach(() => {
     myAccount = new BankAccount();
   });
-	
+
   const givenIHaveXDollarsInMyBankAccount = (given, account) => {
-    given(/I have \$(\d+) in my bank account/, balance => {
+    given(/I have \$(.*) in my bank account/, (balance) => {
       account.deposit(parseInt(balance));
     });
   };
 
   const thenMyBalanceShouldBe = (then, account) => {
-    then(/my balance should be \$(\d+)/, balance => {
+    then(/my balance should be \$(.*)/, (balance) => {
       expect(account.balance).toBe(parseInt(balance));
     });
   };
@@ -27,39 +27,43 @@ defineFeature(feature, test => {
   test('Making a deposit', ({ given, when, then }) => {
     givenIHaveXDollarsInMyBankAccount(given, myAccount);
 
-    when(/I deposit \$(\d+)/, deposit => {
+    when(/I deposit \$(.*)/, (deposit) => {
       myAccount.deposit(parseInt(deposit));
     });
 
     thenMyBalanceShouldBe(then, myAccount);
   });
-	
+
   test('Making a withdrawal', ({ given, when, then }) => {
     givenIHaveXDollarsInMyBankAccount(given, myAccount);
 
-    when(/I withdraw \$(\d+)/, withdrawal => {
+    when(/I withdraw \$(.*)/, (withdrawal) => {
       myAccount.withdraw(withdrawal);
-    });		
+    });
 
     thenMyBalanceShouldBe(then, myAccount);
   });
 });
 ```
-It may be necessary to manage by yourself the `BeforeEach` step because of the order and timing how this function is called. 
+
+It may be necessary to manage by yourself the `BeforeEach` step because of the order and timing how this function is called.
 
 If you need to re-use the same step definitions across multiple feature files, a useful approach is to place shared step definitions in a shared module and import them when needed:
 
 ```javascript
 // shared-steps.js
-	
-export const givenIHaveXDollarsInMyBankAccount = (given, account) => {
-  given(/I have \$(\d+) in my bank account/, balance => {
+
+export const givenIHaveXDollarsInMyBankAccount = (
+  given,
+  account,
+) => {
+  given(/I have \$(.*) in my bank account/, (balance) => {
     account.deposit(balance);
   });
 };
 
 export const thenMyBalanceShouldBe = (then, account) => {
-  then(/my balance should be \$(\d+)/, balance => {
+  then(/my balance should be \$(.*)/, (balance) => {
     expect(account.balance).toBe(parseInt(balance));
   });
 };
@@ -68,11 +72,14 @@ export const thenMyBalanceShouldBe = (then, account) => {
 ```javascript
 // example.steps.js
 
-import { thenMyBalanceShouldBe, givenIHaveXDollarsInMyBankAccount } from './shared-steps';
+import {
+  thenMyBalanceShouldBe,
+  givenIHaveXDollarsInMyBankAccount,
+} from './shared-steps';
 
-defineFeature(feature, test => {
+defineFeature(feature, (test) => {
   let myAccount;
-		
+
   beforeEach(() => {
     myAccount = new BankAccount();
   });
@@ -80,19 +87,19 @@ defineFeature(feature, test => {
   test('Making a deposit', ({ given, when, then }) => {
     givenIHaveXDollarsInMyBankAccount(given, myAccount);
 
-    when(/I deposit \$(\d+)/, deposit => {
+    when(/I deposit \$(.*)/, (deposit) => {
       myAccount.deposit(deposit);
     });
 
     thenMyBalanceShouldBe(then, myAccount);
   });
-	
+
   test('Making a withdrawal', ({ given, when, then }) => {
     givenIHaveXDollarsInMyBankAccount(given, myAccount);
 
-    when(/I withdraw \$(\d+)/, withdrawal => {
+    when(/I withdraw \$(.*)/, (withdrawal) => {
       myAccount.withdraw(withdrawal);
-    });		
+    });
 
     thenMyBalanceShouldBe(then, myAccount);
   });

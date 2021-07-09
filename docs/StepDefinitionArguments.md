@@ -13,27 +13,35 @@ Scenario: Depositing a paycheck
 import { defineFeature, loadFeature } from 'jest-cucumber';
 import BankAccount from '../BankAccount';
 
-const feature = loadFeature('./features/GettingRichWritingSoftware.feature');
+const feature = loadFeature(
+  './features/GettingRichWritingSoftware.feature',
+);
 
-defineFeature(feature, test => {
+defineFeature(feature, (test) => {
   let myAccount;
-		
+
   beforeEach(() => {
     myAccount = new BankAccount();
   });
 
   test('Depositing a paycheck', ({ given, when, then }) => {
-    given(/^my account balance is \$(\d+)$/, accountBalance => {
+    given(/^my account balance is \$(.*)$/, (accountBalance) => {
       myAccount.deposit(parseInt(accountBalance));
     });
 
-    when(/^I get paid \$(\d+) for writing awesome code$/, amount => {
-      myAccount.deposit(parseInt(amount));
-    });
+    when(
+      /^I get paid \$(.*) for writing awesome code$/,
+      (amount) => {
+        myAccount.deposit(parseInt(amount));
+      },
+    );
 
-    then(/^my account balance should be \$(\d+)$/, accountBalance => {
-      expect(myAccount.balance).toBe(parseInt(accountBalance));
-    });
+    then(
+      /^my account balance should be \$(.*)$/,
+      (accountBalance) => {
+        expect(myAccount.balance).toBe(parseInt(accountBalance));
+      },
+    );
   });
 });
 ```

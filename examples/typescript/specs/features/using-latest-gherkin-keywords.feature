@@ -1,7 +1,7 @@
 Feature: Using latest Gherkin keywords
 
-    Rule: When a number, a minus sign, a number, and equals is entered into the calculator, 
-          the sum should be calculated and displayed
+    Rule: When a number, a minus sign, a number, and equals is entered into the calculator,
+        the sum should be calculated and displayed
 
         Example: Subtracting two numbers
             Given I have entered "4" as the first operand
@@ -18,9 +18,9 @@ Feature: Using latest Gherkin keywords
             Then no output should be displayed
 
     Rule: When a number, a division sign, a number, and equals is entered into the calculator,
-          the quotient should be calculated and displayed
+            the quotient should be calculated and displayed
 
-        Scenario Template: Division operations
+            Scenario Template: Division operations
             Given I have entered "<firstOperand>" as the first operand
             And I have entered "/" as the operator
             And I have entered "<secondOperand>" as the second operand
@@ -29,10 +29,10 @@ Feature: Using latest Gherkin keywords
 
             Examples: Successful division
 
-            | firstOperand | secondOperand | output |
-            | 4            | 2             | 2      |
+                | firstOperand | secondOperand | output |
+                | 4            | 2             | 2      |
 
             Examples: Unsuccessful division
 
-            | firstOperand | secondOperand | output    |
-            | 4            | 0             | undefined |
+                | firstOperand | secondOperand | output    |
+                | 4            | 0             | undefined |

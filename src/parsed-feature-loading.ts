@@ -1,384 +1,519 @@
-import { readFileSync } from 'fs';
-import { sync as globSync } from 'glob';
-import { dirname, resolve } from 'path';
-import callsites from 'callsites';
-import { Parser, AstBuilder, Dialect, dialects } from '@cucumber/gherkin';
-import { v4 as uuidv4 } from 'uuid';
+import {AstBuilder, Dialect, Parser, dialects} from "@cucumber/gherkin";
+import callsites from "callsites";
+import {readFileSync} from "fs";
+import {sync as globSync} from "glob";
+import {dirname, resolve} from "path";
+import {v4 as uuidv4} from "uuid";
 
-import { getJestCucumberConfiguration } from './configuration';
-import { ParsedFeature, ParsedScenario, ParsedStep, ParsedScenarioOutline, Options } from './models';
+import {getJestCucumberConfiguration} from "./configuration";
+import {
+    Options,
+    ParsedFeature,
+    ParsedScenario,
+    ParsedScenarioOutline,
+    ParsedStep
+} from "./models";
 
-const parseDataTableRow = (astDataTableRow: any) => {
-    return astDataTableRow.cells.map((col: any) => col.value) as string[];
-};
+const parseDataTableRow = (astDataTableRow: any) => astDataTableRow.cells.map((col: any) => col.value) as string[],
 
-const parseDataTable = (astDataTable: any, astDataTableHeader?: any) => {
-    let headerRow: string[];
-    let bodyRows: string[];
+ parseDataTable = (astDataTable: any, astDataTableHeader?: any) => {
+
+    let headerRow: string[],
+   bodyRows: string[];
 
     if (astDataTableHeader) {
+
         headerRow = parseDataTableRow(astDataTableHeader);
         bodyRows = astDataTable;
     } else {
+
         headerRow = parseDataTableRow(astDataTable.rows[0]);
-        bodyRows = astDataTable && astDataTable.rows && astDataTable.rows.length && astDataTable.rows.slice(1);
+        bodyRows =
+      astDataTable &&
+      astDataTable.rows &&
+      astDataTable.rows.length &&
+      astDataTable.rows.slice(1);
     }
 
     if (bodyRows && bodyRows.length > 0) {
+
         return bodyRows.map((nextRow) => {
+
             const parsedRow = parseDataTableRow(nextRow);
 
-            return parsedRow.reduce((rowObj, nextCol, index) => {
-                return {
-                    ...rowObj,
-                    [headerRow[index]]: nextCol,
-                };
-            }, {});
+            return parsedRow.reduce((rowObj, nextCol, index) => ({
+          ...rowObj,
+          [headerRow[index]]: nextCol,
+        }),
+{});
         });
-    } else {
-        return [];
     }
-};
+    return [];
 
-const parseStepArgument = (astStep: any) => {
-    if (astStep) {
-        switch (astStep.argument) {
-            case 'dataTable':
+},
+
+ parseStepArgument = (astStep: any) => {
+
+        if (astStep) {
+
+            switch (astStep.argument) {
+
+            case "dataTable":
                 return parseDataTable(astStep.dataTable);
-            case 'docString':
+            case "docString":
                 return astStep.docString.content;
             default:
                 return null;
+            }
+        } else {
+
+            return null;
         }
-    } else {
-        return null;
-    }
-};
 
-const parseStep = (astStep: any) => {
-    return {
+    },
+
+    parseStep = (astStep: any) => ({
         stepText: astStep.text,
-        keyword: (astStep.keyword).trim().toLowerCase() as string,
+        keyword: astStep.keyword.trim().toLowerCase() as string,
         stepArgument: parseStepArgument(astStep),
-        lineNumber: astStep.location.line,
-    } as ParsedStep;
-};
+        lineNumber: astStep.location.line
+    } as ParsedStep),
 
-const parseSteps = (astScenario: any) => {
-    return astScenario.steps.map((astStep: any) => parseStep(astStep));
-};
+ parseSteps = (astScenario: any) => astScenario.steps.map((astStep: any) => parseStep(astStep)),
 
-const parseTags = (ast: any) => {
+ parseTags = (ast: any) => {
+
     if (!ast.tags) {
+
         return [] as string[];
-    } else {
-        return ast.tags.map((tag: any) => tag.name.toLowerCase());
     }
-};
+    return ast.tags.map((tag: any) => tag.name.toLowerCase());
 
-const parseScenario = (astScenario: any) => {
-    return {
-        title: astScenario.name,
-        steps: parseSteps(astScenario),
-        tags: parseTags(astScenario),
-        lineNumber: astScenario.location.line,
-    } as ParsedScenario;
-};
+},
 
-const parseScenarioOutlineExampleSteps = (exampleTableRow: any, scenarioSteps: ParsedStep[]) => {
-    return scenarioSteps.map((scenarioStep) => {
-        const stepText = Object.keys(exampleTableRow).reduce((processedStepText, nextTableColumn) => {
-            return processedStepText.replace(new RegExp(`<${nextTableColumn}>`, 'g'), exampleTableRow[nextTableColumn]);
-        }, scenarioStep.stepText);
+ parseScenario = (astScenario: any) => ({
+    "title": astScenario.name,
+    "steps": parseSteps(astScenario),
+    "tags": parseTags(astScenario),
+    "lineNumber": astScenario.location.line
+} as ParsedScenario),
 
-        let stepArgument: string | {} = '';
+ parseScenarioOutlineExampleSteps = (
+    exampleTableRow: any,
+    scenarioSteps: ParsedStep[]
+) => scenarioSteps.map((scenarioStep) => {
 
-        if (scenarioStep.stepArgument) {
-            if (Array.isArray(scenarioStep.stepArgument)) {
-                stepArgument = (scenarioStep.stepArgument as any).map((stepArgumentRow: any) => {
-                    const modifiedStepArgumentRow = { ...stepArgumentRow };
+    const stepText = Object.keys(exampleTableRow).reduce(
+        (processedStepText, nextTableColumn) => processedStepText.replace(
+          new RegExp(`<${nextTableColumn}>`, 'g'),
+          exampleTableRow[nextTableColumn],
+        ),
+        scenarioStep.stepText
+    );
+
+    let stepArgument: string | {} = "";
+
+    if (scenarioStep.stepArgument) {
+
+        if (Array.isArray(scenarioStep.stepArgument)) {
+
+            stepArgument = scenarioStep.stepArgument as any.map((stepArgumentRow: any) => {
+
+                    const modifiedStepArgumentRow = {...stepArgumentRow};
 
                     Object.keys(exampleTableRow).forEach((nextTableColumn) => {
+
                         Object.keys(modifiedStepArgumentRow).forEach((prop) => {
-                            modifiedStepArgumentRow[prop] =
-                                modifiedStepArgumentRow[prop].replace(
-                                    new RegExp(`<${nextTableColumn}>`, 'g'),
-                                    exampleTableRow[nextTableColumn],
-                                );
+
+                            modifiedStepArgumentRow[prop] = modifiedStepArgumentRow[
+                                prop
+                            ].replace(
+                                new RegExp(`<${nextTableColumn}>`,
+'g'),
+                                exampleTableRow[nextTableColumn]
+                            );
                         });
                     });
 
                     return modifiedStepArgumentRow;
-                });
-            } else {
-                stepArgument = scenarioStep.stepArgument;
-
-                if (
-                    typeof scenarioStep.stepArgument === 'string' ||
-                    scenarioStep.stepArgument instanceof String
-                ) {
-                    Object.keys(exampleTableRow).forEach((nextTableColumn) => {
-                        stepArgument = (stepArgument as string).replace(
-                            new RegExp(`<${nextTableColumn}>`, 'g'),
-                            exampleTableRow[nextTableColumn],
-                        );
-                    });
                 }
+            );
+        } else {
+
+            stepArgument = scenarioStep.stepArgument;
+
+            if (
+                typeof scenarioStep.stepArgument === "string" ||
+          scenarioStep.stepArgument instanceof String
+            ) {
+
+                Object.keys(exampleTableRow).forEach((nextTableColumn) => {
+
+                    stepArgument = stepArgument as string.replace(
+                        new RegExp(`<${nextTableColumn}>`,
+'g'),
+                        exampleTableRow[nextTableColumn]
+                    );
+                });
             }
         }
+    
+}
 
-        return {
-            ...scenarioStep,
-            stepText,
-            stepArgument,
-        } as ParsedStep;
-    });
-};
+    return {
+        ...scenarioStep,
+        stepText,
+        stepArgument
+    } as ParsedStep;
+}),
 
-const getOutlineDynamicTitle = (exampleTableRow: any, title: string) => {
-    return title.replace(/<(\S*)>/g, (_, firstMatch) => {
-        return exampleTableRow[firstMatch || ''];
-    });
-};
+ getOutlineDynamicTitle = (exampleTableRow: any, title: string) => title.replace(/<(\S*)>/g,
+(_, firstMatch) => exampleTableRow[firstMatch || '']),
 
-const parseScenarioOutlineExample = (
+ parseScenarioOutlineExample = (
     exampleTableRow: any,
     outlineScenario: ParsedScenario,
-    exampleSetTags: string[],
-) => {
-    return {
-        title: getOutlineDynamicTitle(exampleTableRow, outlineScenario.title),
-        steps: parseScenarioOutlineExampleSteps(exampleTableRow, outlineScenario.steps),
-        tags: Array.from(new Set<string>([...outlineScenario.tags, ...exampleSetTags])),
-    } as ParsedScenario;
-};
+    exampleSetTags: string[]
+) => ({
+    "title": getOutlineDynamicTitle(exampleTableRow,
+outlineScenario.title),
+    "steps": parseScenarioOutlineExampleSteps(
+        exampleTableRow,
+        outlineScenario.steps
+    ),
+    "tags": Array.from(new Set<string>([...outlineScenario.tags,
+...exampleSetTags])
+    )
+} as ParsedScenario),
 
-const parseScenarioOutlineExampleSet = (astExampleSet: any, outlineScenario: ParsedScenario) => {
-    const exampleTable = parseDataTable(astExampleSet.tableBody, astExampleSet.tableHeader);
+ parseScenarioOutlineExampleSet = (
+        astExampleSet: any,
+        outlineScenario: ParsedScenario
+    ) => {
 
-    return exampleTable.map(
-        (tableRow) => parseScenarioOutlineExample(tableRow, outlineScenario, parseTags(astExampleSet)),
-    );
-};
+        const exampleTable = parseDataTable(
+            astExampleSet.tableBody,
+            astExampleSet.tableHeader
+        );
 
-const parseScenarioOutlineExampleSets = (astExampleSets: any, outlineScenario: ParsedScenario) => {
-    const exampleSets = astExampleSets.map((astExampleSet: any) => {
-        return parseScenarioOutlineExampleSet(astExampleSet, outlineScenario);
-    });
+        return exampleTable.map((tableRow) => parseScenarioOutlineExample(
+            tableRow,
+            outlineScenario,
+            parseTags(astExampleSet)
+        ));
 
-    return exampleSets.reduce((scenarios: ParsedScenario[], nextExampleSet: ParsedScenario[][]) => {
-        return [
-            ...scenarios,
-            ...nextExampleSet,
-        ];
-    }, [] as ParsedScenario[]);
-};
+    },
 
-const parseScenarioOutline = (astScenarioOutline: any) => {
-    const outlineScenario = parseScenario(astScenarioOutline.scenario);
+    parseScenarioOutlineExampleSets = (
+        astExampleSets: any,
+        outlineScenario: ParsedScenario
+    ) => {
 
-    return {
-        title: outlineScenario.title,
-        scenarios: parseScenarioOutlineExampleSets(astScenarioOutline.scenario.examples, outlineScenario),
-        tags: outlineScenario.tags,
-        steps: outlineScenario.steps,
-        lineNumber: astScenarioOutline.scenario.location.line,
-    } as ParsedScenarioOutline;
-};
+        const exampleSets = astExampleSets.map((astExampleSet: any) => parseScenarioOutlineExampleSet(astExampleSet,
+outlineScenario));
 
-const parseScenarios = (astFeature: any) => {
-    return astFeature.children
-        .filter((child: any) => {
-            const keywords = ['Scenario Outline', 'Scenario Template'];
+        return exampleSets.reduce(
+            (scenarios: ParsedScenario[], nextExampleSet: ParsedScenario[][]) => [...scenarios,
+...nextExampleSet],
+    [] as ParsedScenario[]
+        );
 
-            return child.scenario && keywords.indexOf(child.scenario.keyword) === -1;
-        })
-        .map((astScenario: any) => parseScenario(astScenario.scenario));
-};
+    },
 
-const parseScenarioOutlines = (astFeature: any) => {
-    return astFeature.children
-        .filter((child: any) => {
-            const keywords = ['Scenario Outline', 'Scenario Template'];
+    parseScenarioOutline = (astScenarioOutline: any) => {
 
-            return child.scenario && keywords.indexOf(child.scenario.keyword) !== -1;
-        })
-        .map((astScenarioOutline: any) => parseScenarioOutline(astScenarioOutline));
-};
+        const outlineScenario = parseScenario(astScenarioOutline.scenario);
 
-const collapseBackgrounds = (astChildren: any[], backgrounds: any[]) => {
-    const backgroundSteps = backgrounds
-        .reduce((allBackgroundSteps, nextBackground) => {
-            return [
-                ...allBackgroundSteps,
-                ...nextBackground.steps,
-            ];
-        }, []);
+        return {
+            title: outlineScenario.title,
+            scenarios: parseScenarioOutlineExampleSets(
+                astScenarioOutline.scenario.examples,
+                outlineScenario
+            ),
+            tags: outlineScenario.tags,
+            steps: outlineScenario.steps,
+            lineNumber: astScenarioOutline.scenario.location.line
+        } as ParsedScenarioOutline;
 
-    astChildren.forEach((child) => {
-        if (child.scenario) {
-            child.scenario.steps = [...backgroundSteps, ...child.scenario.steps];
-        }
-    });
+    },
 
-    return astChildren;
-};
+    parseScenarios = (astFeature: any) => astFeature.children.
+    filter((child: any) => {
 
-const parseBackgrounds = (ast: any) => {
-    return ast.children
-        .filter((child: any) => child.background)
-        .map((child: any) => child.background);
-};
+            const keywords = ["Scenario Outline",
+'Scenario Template'];
 
-const collapseRulesAndBackgrounds = (astFeature: any) => {
-    const featureBackgrounds = parseBackgrounds(astFeature);
+            return (
+                child.scenario && keywords.indexOf(child.scenario.keyword) === -1
+            );
+        }).
+    map((astScenario: any) => parseScenario(astScenario.scenario)),
 
-    const children = collapseBackgrounds(astFeature.children, featureBackgrounds)
-        .reduce((newChildren: [], nextChild: any) => {
-            if (nextChild.rule) {
-                const rule = nextChild.rule;
-                const ruleBackgrounds = parseBackgrounds(rule);
+ parseScenarioOutlines = (astFeature: any) => astFeature.children.
+    filter((child: any) => {
 
-                return [
-                    ...newChildren,
-                    ...collapseBackgrounds(rule.children, [...featureBackgrounds, ...ruleBackgrounds]),
-                ];
-            } else {
-                return [...newChildren, nextChild];
+        const keywords = ["Scenario Outline",
+'Scenario Template'];
+
+        return (
+            child.scenario && keywords.indexOf(child.scenario.keyword) !== -1
+        );
+    
+}).
+    map((astScenarioOutline: any) => parseScenarioOutline(astScenarioOutline)
+    ),
+
+ collapseBackgrounds = (astChildren: any[], backgrounds: any[]) => {
+
+        const backgroundSteps = backgrounds.reduce(
+            (allBackgroundSteps, nextBackground) => [...allBackgroundSteps,
+...nextBackground.steps],
+            []
+        );
+
+        astChildren.forEach((child) => {
+
+            if (child.scenario) {
+
+                child.scenario.steps = [
+...backgroundSteps,
+                    ...child.scenario.steps
+];
             }
-        }, []);
+        });
 
-    return {
-        ...astFeature,
-        children,
-    };
-};
+        return astChildren;
 
-const translateKeywords = (astFeature: any) => {
-    const languageDialect = dialects[astFeature.language];
-    const translationMap = createTranslationMap(languageDialect);
+    },
 
-    astFeature.language = 'en';
-    astFeature.keyword = translationMap[astFeature.keyword] || astFeature.keyword;
+    parseBackgrounds = (ast: any) => ast.children.
+    filter((child: any) => child.background).
+    map((child: any) => child.background),
 
-    for (const child of astFeature.children) {
-        if (child.background) {
-            child.background.keyword = translationMap[child.background.keyword] || child.background.keyword;
-        }
+ collapseRulesAndBackgrounds = (astFeature: any) => {
 
-        if (child.scenario) {
-            child.scenario.keyword = translationMap[child.scenario.keyword] || child.scenario.keyword;
+        const featureBackgrounds = parseBackgrounds(astFeature),
 
-            for (const step of child.scenario.steps) {
-                step.keyword = translationMap[step.keyword] || step.keyword;
+            children = collapseBackgrounds(
+                astFeature.children,
+                featureBackgrounds
+            ).reduce(
+(newChildren: [], nextChild: any) => {
+
+                if (nextChild.rule) {
+
+                    const {rule} = nextChild;
+                    const ruleBackgrounds = parseBackgrounds(rule);
+
+                    return [
+                        ...newChildren,
+                        ...collapseBackgrounds(rule.children,
+[
+                            ...featureBackgrounds,
+                            ...ruleBackgrounds
+                        ])
+                    ];
+                }
+                return [...newChildren,
+nextChild];
+
+            },
+            []
+);
+
+        return {
+            ...astFeature,
+            children
+        };
+
+    },
+
+    translateKeywords = (astFeature: any) => {
+
+        const languageDialect = dialects[astFeature.language],
+            translationMap = createTranslationMap(languageDialect);
+
+        astFeature.language = "en";
+        astFeature.keyword =
+    translationMap[astFeature.keyword] || astFeature.keyword;
+
+        for (const child of astFeature.children) {
+
+            if (child.background) {
+
+                child.background.keyword =
+        translationMap[child.background.keyword] ||
+        child.background.keyword;
             }
 
-            for (const example of child.scenario.examples) {
-                example.keyword = translationMap[example.keyword] || example.keyword;
-            }
-        }
-    }
+            if (child.scenario) {
 
-    return astFeature;
-};
+                child.scenario.keyword =
+        translationMap[child.scenario.keyword] || child.scenario.keyword;
 
-const createTranslationMap = (translateDialect: Dialect) => {
-    const englishDialect = dialects.en;
-    const translationMap: { [word: string]: string } = {};
+                for (const step of child.scenario.steps) {
 
-    const props: Array<keyof Dialect> = [
-        'and',
-        'background',
-        'but',
-        'examples',
-        'feature',
-        'given',
-        'scenario',
-        'scenarioOutline',
-        'then',
-        'when',
-        'rule',
-    ];
+                    step.keyword = translationMap[step.keyword] || step.keyword;
+                }
 
-    for (const prop of props) {
-        const dialectWords = translateDialect[prop];
-        const translationWords = englishDialect[prop];
-        let index = 0;
-        let defaultWordIndex: number | null = null;
+                for (const example of child.scenario.examples) {
 
-        for (const dialectWord of dialectWords) {
-            // skip "* " word
-            if (dialectWord.indexOf('*') !== 0) {
-                if (translationWords[index] !== undefined) {
-                    translationMap[dialectWord] = translationWords[index];
-                    if (defaultWordIndex === null) {
-                        // set default when non is set yet
-                        defaultWordIndex = index;
-                    }
-                } else {
-                    // index has undefined value, translate to default word
-                    if (defaultWordIndex !== null) {
-                        translationMap[dialectWord] = translationWords[defaultWordIndex];
-                    } else {
-                        throw new Error('No translation found for ' + dialectWord);
-                    }
+                    example.keyword =
+          translationMap[example.keyword] || example.keyword;
                 }
             }
-
-            index++;
         }
-    }
 
-    return translationMap;
-};
+        return astFeature;
 
-export const parseFeature = (featureText: string, options?: Options): ParsedFeature => {
+    },
+
+    createTranslationMap = (translateDialect: Dialect) => {
+
+        const englishDialect = dialects.en,
+            translationMap: {[word: string]: string} = {},
+
+            props: Array<keyof Dialect> = [
+                'and',
+                'background',
+                'but',
+                'examples',
+                'feature',
+                'given',
+                'scenario',
+                'scenarioOutline',
+                'then',
+                'when',
+                'rule'
+            ];
+
+        for (const prop of props) {
+
+            const dialectWords = translateDialect[prop],
+                translationWords = englishDialect[prop];
+            let defaultWordIndex: number | null = null,
+     index = 0;
+
+            for (const dialectWord of dialectWords) {
+
+                // Skip "* " word
+                if (dialectWord.indexOf("*") !== 0) {
+
+                    if (translationWords[index] !== undefined) {
+
+                        translationMap[dialectWord] = translationWords[index];
+                        if (defaultWordIndex === null) {
+
+                            // Set default when non is set yet
+                            defaultWordIndex = index;
+                        }
+                    } else {
+
+                        // Index has undefined value, translate to default word
+                        if (defaultWordIndex !== null) {
+
+                            translationMap[dialectWord] =
+              translationWords[defaultWordIndex];
+                        } else {
+
+                            throw new Error(`No translation found for ${dialectWord}`);
+                        }
+                    }
+                }
+
+                index++;
+            }
+        }
+
+        return translationMap;
+
+    };
+
+export const parseFeature = (
+    featureText: string,
+    options?: Options
+): ParsedFeature => {
+
     let ast: any;
 
     try {
+
         const builder = new AstBuilder(uuidv4 as any);
         ast = new Parser(builder).parse(featureText);
-    } catch (err) {
+    
+} catch (err) {
+
         throw new Error(`Error parsing feature Gherkin: ${err.message}`);
-    }
+    
+}
 
     let astFeature = collapseRulesAndBackgrounds(ast.feature);
 
-    if (astFeature.language !== 'en') {
+    if (astFeature.language !== "en") {
+
         astFeature = translateKeywords(astFeature);
-    }
+    
+}
 
     return {
-        title: astFeature.name,
-        scenarios: parseScenarios(astFeature),
-        scenarioOutlines: parseScenarioOutlines(astFeature),
-        tags: parseTags(astFeature),
-        options,
+        "title": astFeature.name,
+        "scenarios": parseScenarios(astFeature),
+        "scenarioOutlines": parseScenarioOutlines(astFeature),
+        "tags": parseTags(astFeature),
+        options
     } as ParsedFeature;
+
 };
 
-export const loadFeature = (featureFilePath: string, options?: Options) => {
+export const loadFeature = (
+    featureFilePath: string,
+    options?: Options
+) => {
+
     options = getJestCucumberConfiguration(options);
 
-    const callSite = callsites()[1];
-    const fileOfCaller = callSite && callSite.getFileName() || '';
-    const dirOfCaller = dirname(fileOfCaller);
-    const absoluteFeatureFilePath = resolve(options.loadRelativePath ? dirOfCaller : '', featureFilePath);
+    const callSite = callsites()[1],
+        fileOfCaller = callSite && callSite.getFileName() || "",
+     dirOfCaller = dirname(fileOfCaller),
+        absoluteFeatureFilePath = resolve(
+            options.loadRelativePath
+                ? dirOfCaller
+                : "",
+            featureFilePath
+        );
 
     try {
-        const featureText: string = readFileSync(absoluteFeatureFilePath, 'utf8');
-        return parseFeature(featureText, options);
-    } catch (err) {
-        if (err.code === 'ENOENT') {
+
+        const featureText: string = readFileSync(
+            absoluteFeatureFilePath,
+            "utf8"
+        );
+        return parseFeature(
+featureText,
+            options
+);
+    
+} catch (err) {
+
+        if (err.code === "ENOENT") {
+
             throw new Error(`Feature file not found (${absoluteFeatureFilePath})`);
-        }
+        
+}
 
         throw err;
-    }
+    
+}
+
 };
 
 export const loadFeatures = (globPattern: string, options?: Options) => {
+
     const featureFiles = globSync(globPattern);
 
-    return featureFiles.map((featureFilePath) => loadFeature(featureFilePath, options));
+    return featureFiles.map((featureFilePath) => loadFeature(
+featureFilePath,
+        options
+));
+
 };

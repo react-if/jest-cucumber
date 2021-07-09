@@ -43,7 +43,7 @@ defineFeature(feature, test => {
       salesPrise = onlineSales.sell(itemName);
     });
 
-    then(/^I should get \$(\d+)$/, amount => {
+    then(/^I should get \$(.*)$/, amount => {
       expect(salesPrice).toBe(amount);
     });
   });
